@@ -10,12 +10,19 @@
 #    as it moves and turns, and nothing reads or writes out of bounds.
 #   HC=/path/to/prepared (package/prepare-source.sh) sh tests/host/test_hc.sh
 #   HC_TEST_KEEP=DIR keeps the frames (PPM) there.
+# Big-endian, as on the Amiga: with a 68k Linux cross compiler and QEMU,
+#   HOSTCC="m68k-linux-gnu-gcc -static" HC_RUN=qemu-m68k sh tests/host/test_hc.sh
+# runs the same tests on an emulated 68040 (the data files' little-endian
+# ints, the game's byte-sized globals), without AddressSanitizer;
+# HC_SAME_AS=DIR (a little-endian run's HC_TEST_KEEP) then checks that
+# every frame is byte for byte the PC's.
 # GPL-3.0-or-later, like Hypercycles. Copyright (c) 2026 AmiCradle Team.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(CDPATH= cd -- "$HERE/../.." && pwd)
 HC=${HC:?HC=prepared source (package/prepare-source.sh DIR)}
 CC=${HOSTCC:-cc}
+RUN=${HC_RUN:-}
 T=$(mktemp -d "${TMPDIR:-/tmp}/hc-host.XXXXXX")
 trap 'rm -rf "$T"' EXIT INT TERM
 
@@ -40,7 +47,7 @@ done
 
 # shellcheck disable=SC2086
 $CC $SAN -o "$T/unit" "$T/unit_test.o" $OURS -lm
-HC_TEST_DATA="$T/data" HC_END=100000 "$T/unit"
+HC_TEST_DATA="$T/data" HC_END=100000 $RUN "$T/unit"
 
 for f in hyper6 raycast trig h3d_gfx1 hypadt; do $CC $UP -c -o "$T/$f.o" "$HC/src/$f.c"; done
 # shellcheck disable=SC2086
@@ -57,7 +64,7 @@ print(len({px[j:j+3] for j in range(0,len(px),3)}))' "$1"
 
 run() {   # run NAME VAR=VALUE...: the game until HC_END
     mkdir -p "$T/$1"; n=$1; shift
-    if ! env HC_DATA="$T/data" HC_OUT="$T/$n" "$@" "$T/hc" > "$T/$n/stdout.txt" 2> "$T/$n/stderr.txt"; then
+    if ! env HC_DATA="$T/data" HC_OUT="$T/$n" "$@" $RUN "$T/hc" > "$T/$n/stdout.txt" 2> "$T/$n/stderr.txt"; then
         echo "FAIL $n: the game stopped"; tail -30 "$T/$n/stderr.txt"; fail=1; return 1
     fi
     [ -f "$T/$n/summary.txt" ] || { echo "FAIL $n: no summary"; fail=1; return 1; }
@@ -84,6 +91,12 @@ if run play HC_END=50000 HC_KEYS="$KEYS" HC_SHOTS=36000,40000,45000,49000; then
     echo "play: level 1 rides forward and turns ($c colours in the view)"
 fi
 
+if [ -n "${HC_SAME_AS:-}" ]; then
+    for f in attract/shot-2000 attract/shot-5000 attract/shot-15000 play/shot-36000 play/shot-40000 play/shot-45000 play/shot-49000; do
+        cmp -s "$T/$f.ppm" "$HC_SAME_AS/$f.ppm" || { echo "FAIL same: $f differs from $HC_SAME_AS"; fail=1; }
+    done
+    [ $fail = 0 ] && echo "same: all 7 frames are byte for byte those of $HC_SAME_AS"
+fi
 if [ -n "${HC_TEST_KEEP:-}" ]; then mkdir -p "$HC_TEST_KEEP"; cp -R "$T/attract" "$T/play" "$HC_TEST_KEEP/"; fi
 [ $fail = 0 ] && echo "host tests: all passed${SAN:+ (AddressSanitizer)}"
 exit $fail

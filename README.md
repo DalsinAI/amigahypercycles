@@ -40,6 +40,14 @@ on a PC (with AddressSanitizer where the compiler has it):
   Return through New Game and Rookie reaches level 1, and riding forward
   and turning change the view.
 
+Big-endian, as on the Amiga, with a 68k Linux cross compiler and QEMU:
+
+    HOSTCC="m68k-linux-gnu-gcc -static" HC_RUN=qemu-m68k HC=/tmp/hc \
+        HC_SAME_AS=/tmp/hc-pc-frames sh tests/host/test_hc.sh
+
+runs the same tests on an emulated 68040 and checks every frame is byte for
+byte the PC's (HC_SAME_AS is a little-endian run's HC_TEST_KEEP).
+
 ## Layout
 
 - `amiga/hc_dos.c`, `hc_dos.h`, `include/`: the DOS machine (VGA ports,
