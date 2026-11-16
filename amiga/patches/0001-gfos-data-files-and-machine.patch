@@ -1,0 +1,179 @@
+diff -ru pa/h3d_gfx1.c pb/h3d_gfx1.c
+--- pa/h3d_gfx1.c	2026-11-16 22:02:34.375820797 +0000
++++ pb/h3d_gfx1.c	2026-11-16 22:04:17.744533010 +0000
+@@ -106,7 +106,8 @@
+   picture[pic_num].ratio=((xlen+1)<<8) / (ylen+1);  // *256
+   picture[pic_num].image=0;
+   
+-  ibuffer = malloc(xlen*(ylen+1)+16);
++  /* GFOS: some sprite grabs read a little past the picture: room for them */
++  ibuffer = calloc(1, xlen*(ylen+1)+16+4096);
+   if(ibuffer==NULL) return;
+   picture[pic_num].image= (unsigned int *) ibuffer;
+   
+diff -ru pa/hyper6.c pb/hyper6.c
+--- pa/hyper6.c	2026-11-16 22:02:34.375850330 +0000
++++ pb/hyper6.c	2026-11-16 22:04:46.318482762 +0000
+@@ -20,7 +20,9 @@
+ 
+ #define UCHAR unsigned char
+ #define SHORT short int
+-int ADT_FLAG=1;         //Off=0   On>0
++/* GFOS: the data files are loose in the drawer (no HYPER1.ADT/HYPER2.ADT) */
++int ADT_FLAG=0;         //Off=0   On>0
++#include "hc_files.h"
+ 
+ // P R O T O T Y P E S //////////////////////////////////////////////////////
+ 
+@@ -137,6 +139,7 @@
+   int            ratio;
+ } picture[192];
+ 
++#pragma pack(push, 1) /* as Watcom wrote LEVEL.DEF: 276 bytes a level */
+ struct level_def_struc
+ {
+     unsigned char       level_type;
+@@ -163,6 +166,7 @@
+     int                  opt1,opt2,opt3,opt4,opt5,opt6,opt7,opt8;
+     
+ } level_def;
++#pragma pack(pop)
+ 
+ struct obj_def
+ {
+@@ -452,7 +456,9 @@
+   
+   fp1 = fopen("HYPER.CFG","rb" );
+ 
+-  if(fp1 == NULL) return(0);
++  /* GFOS: no HCSETUP to run first: no HYPER.CFG means the keyboard, with
++     sound and music off */
++  if(fp1 == NULL) { memset(&hc_setup, 0, sizeof(hc_setup)); return(1); }
+   fread( &hc_setup, sizeof( hc_setup ), 1, fp1);
+   fclose(fp1);
+ 
+@@ -1812,7 +1818,7 @@
+   z2=0;
+   while(!z2 && !feof( fp1 ) )
+   {
+-    fread( &object[0], sizeof( single ), 1, fp1);
++    fread( &object[0], sizeof( single ), 1, fp1); hc_object_le(&object[0]);
+     if(!feof(fp1) && object[0].level_num == level_num) 
+     {
+       z2++;
+@@ -1860,7 +1866,7 @@
+       fclose(fp1);
+       goto Finish_Up;
+     }
+-    fread( &object[z3], sizeof( single ), 1, fp1);
++    fread( &object[z3], sizeof( single ), 1, fp1); hc_object_le(&object[z3]);
+     if(!feof(fp1) && object[z3].objtype>0 )
+     {
+       if(object[z3].level_num != level_num)
+@@ -1974,7 +1980,7 @@
+     if( fp != NULL )
+     {
+       fseek(fp, (level_num-1) * sizeof(level_def), SEEK_SET );
+-      fread( &level_def, sizeof( level_def ), 1, fp);
++      fread( &level_def, sizeof( level_def ), 1, fp); hc_level_def_le(&level_def);
+       fclose(fp);
+     }
+ 
+@@ -1987,7 +1993,7 @@
+     if( fp != NULL )
+     {
+       fseek(fp, (level_num-1) * sizeof(level_def), SEEK_CUR );
+-      fread( &level_def, sizeof( level_def ), 1, fp);
++      fread( &level_def, sizeof( level_def ), 1, fp); hc_level_def_le(&level_def);
+       fclose(fp);
+     }
+ 
+@@ -2379,6 +2385,9 @@
+   // alias a pointer to sprite for ease of access
+   if(pic_num <='Z') work_sprite = (char*) picture[pic_num - 'A'].image;
+   else work_sprite = (char*) picture[pic_num - 'a' + 26].image;
++  /* GFOS: a wall letter no tile set loads (the speed test's border) read
++     DOS memory at 0; here it reads an empty texture */
++  if(!work_sprite) work_sprite = (char*) hc_blank_texture;
+ 
+   // compute offset of sprite in video buffer >>  offset=st*320+column;
+   bufptr=double_buffer_c+(st2 << 8) + (st2 << 6) + column;
+@@ -2442,6 +2451,9 @@
+   // alias a pointer to sprite for ease of access
+   if(pic_num <='Z') work_sprite = (char*) picture[pic_num - 'A'].image;
+   else work_sprite = (char*) picture[pic_num - 'a' + 26].image;
++  /* GFOS: a wall letter no tile set loads (the speed test's border) read
++     DOS memory at 0; here it reads an empty texture */
++  if(!work_sprite) work_sprite = (char*) hc_blank_texture;
+ 
+   // compute offset of sprite in video buffer >>  offset=st*320+column;
+   bufptr=double_buffer_c+(st2 << 8) + (st2 << 6) + column;
+@@ -2542,7 +2554,7 @@
+     // load in the next row
+     for (column=0; column<WORLD_COLUMNS; column++)
+     {
+-      while((ch = getc(fp))==10){} // filter out CR
++      while((ch = getc(fp))==10 || ch==13){} // filter out CR (GFOS: and the CR DOS text mode took out)
+ 
+       // translate character to integer
+       if (ch == ' ') ch=0;
+@@ -4770,7 +4782,14 @@
+ void texture_unload()
+ {
+   int a;
+-  for(a=0; a<52; a++) PCX_Unload(a);
++  for(a=0; a<52; a++)
++  {
++    /* GFOS: Texture_Load gives picture b+13 picture b's image too; it is
++       freed once (DOS's free let a second one by) */
++    int c;
++    for(c=a+1; c<52; c++) if(picture[c].image==picture[a].image) picture[c].image=0;
++    PCX_Unload(a);
++  }
+   tex_load_flag=0;
+ }
+ 
+@@ -8309,10 +8328,11 @@
+   int a;
+ 
+ 
+-  equip = (unsigned int *) 0x00000410; // pointer to bios equip
+-  clockr= (unsigned int *) 0x0000046C; // pointer to internal
+-  vga_ram= (unsigned int *) 0x000a0000; // points to vga ram
+-  vga_ram_c= (unsigned char *) 0x000a0000; // points to vga ram
++  /* GFOS: amiga/hc_dos.c's BIOS words and mode 13h screen */
++  equip = &hc_bios_equip; // pointer to bios equip
++  clockr= &hc_bios_clock; // pointer to internal
++  vga_ram= (unsigned int *) hc_vga; // points to vga ram
++  vga_ram_c= hc_vga; // points to vga ram
+ 
+   printf("\n   HYPERCYCLES(tm) V.99  Copyright 1995  Aclypse Corporation\n");
+   printf("\n   HYPERCYCLES & ACLYPSE are Trademarks of Aclypse Corporation\n");
+@@ -8358,13 +8378,13 @@
+     printf("\n\n*** Please run HCSETUP.EXE to configure system. ***\n");
+     exit(0);
+   }
+-  a = adt1_init();
++  a = ADT_FLAG ? adt1_init() : 0;
+   if(a)
+   {
+     printf("\n\n*** ERROR Could not find file HYPER1.ADT ***\n");
+     exit(1);
+   }
+-  a = adt2_init();
++  a = ADT_FLAG ? adt2_init() : 0;
+   if(a)
+   {
+     printf("\n\n*** ERROR Could not find file HYPER2.ADT ***\n");
+diff -ru pa/raycast.c pb/raycast.c
+--- pa/raycast.c	2026-11-16 22:02:34.375997138 +0000
++++ pb/raycast.c	2026-11-16 22:03:17.969891725 +0000
+@@ -27,7 +27,7 @@
+ int z5_table[6000];
+ int last_va=-1, last_fs[322], last_fs2[322];
+ int last_fxi[110], last_fyi[110], last_fx[110], last_fy[110];
+-unsigned char floor_resol=1;
++int floor_resol=1; /* GFOS: hyper6.c stores an int in it (a byte here overran on a big-endian 68k) */
+ 
+ extern unsigned char wall_ht_map[4098];
+ extern int xmaze_sq, ymaze_sq, res_def;

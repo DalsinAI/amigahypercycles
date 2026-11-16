@@ -1,0 +1,81 @@
+# Hypercycles for GFOS (AmigaOS 3.2 with GFOpenUp), 68040/68060: the 1995
+# DOS game on ACGame's 8-bit screen (acgame.library), no SDL and no
+# GFOpenGPU, built soft float.
+#
+#   make -f amiga/Makefile.amigaos -j4 HC=/path/to/prepared \
+#        ACGAME=/path/to/acgame ACGAMELIB=/path/to/acgame-out [STOVE=...]
+#
+# HC is what package/prepare-source.sh makes: src/ (upstream's C, lower
+# case, patched) and data/ (its pictures, maps and music). ACGAME is
+# DalsinAI/acgame (its headers), ACGAMELIB its build (libacgame.a, the
+# stubs that open acgame.library, and acgame.library itself).
+#
+# Upstream's DOS layer is not built (ctv.c the Sound Blaster, adlib.c,
+# outchip.c, midiplay.c and midimain.c the AdLib music, timer.c the PIT,
+# c_mod1.c and memuse.c the BIOS calls, fixpoint.asm): amiga/ has them.
+#
+# Output: build/amigaos/Hypercycles/ (the drawer: the program, its data,
+# Libs/acgame.library, ReadMe, the licence, the icons) and
+# build/amigaos/Hypercycles.info and Install-Hypercycles beside it.
+
+HC        ?= ../hc-prepared
+ACGAME    ?= ../acgame
+ACGAMELIB ?= $(ACGAME)/build-amiga
+STOVE     ?= $(HOME)/AmiCradle/stoves/os32-gcc16-open6
+PREFIX    ?= $(STOVE)/prefix
+CC        = $(PREFIX)/bin/m68k-amigaos-gcc
+CPU       ?= -m68040 -msoft-float
+# -fno-tree-loop-distribute-patterns: GCC 16's loop miscompile.
+OPT       ?= -O2 -fomit-frame-pointer -fno-tree-loop-distribute-patterns
+
+INC       = -Iamiga/include -Iamiga -I$(HC)/src -I$(ACGAME)/include
+# Upstream is 1995 Watcom C: gnu89, its warnings are upstream's (-w); a
+# Watcom char is unsigned, and its pointers alias freely.
+UPFLAGS   = -noixemul $(OPT) $(CPU) -std=gnu89 -w -funsigned-char -fno-strict-aliasing \
+            -Dmain=hc_game_main $(INC)
+CFLAGS    = -noixemul $(OPT) $(CPU) -std=gnu99 -Wall -Werror $(INC)
+LDFLAGS   = -noixemul $(CPU)
+LIBS      = $(ACGAMELIB)/libacgame.a -lm
+
+BUILD     = build/amigaos
+OBJ       = $(BUILD)/obj
+DRAWER    = $(BUILD)/Hypercycles
+
+UPSRC     = hyper6 raycast trig h3d_gfx1 hypadt
+OURS      = hc_dos hc_keys hc_fixpoint hc_sound hc_files hc_acgame
+OBJS      = $(UPSRC:%=$(OBJ)/up/%.o) $(OURS:%=$(OBJ)/%.o)
+
+all: program package
+
+program: $(OBJ)/Hypercycles
+
+$(OBJ)/up/%.o: $(HC)/src/%.c amiga/hc_dos.h amiga/hc_files.h
+	@mkdir -p $(dir $@)
+	$(CC) $(UPFLAGS) -c -o $@ $<
+
+$(OBJ)/%.o: amiga/%.c amiga/hc_dos.h amiga/hc_plat.h amiga/hc_files.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ)/Hypercycles: $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+package: program AMIGA_PORT.md
+	rm -rf $(DRAWER)
+	mkdir -p $(DRAWER)/Libs
+	cp $(OBJ)/Hypercycles $(DRAWER)/Hypercycles
+	cp amiga/icons/Hypercycles.info $(DRAWER)/Hypercycles.info
+	cp $(HC)/data/* $(DRAWER)/
+	cp $(ACGAMELIB)/acgame.library $(DRAWER)/Libs/
+	cp AMIGA_PORT.md $(DRAWER)/ReadMe
+	cp amiga/icons/ReadMe.info $(DRAWER)/ReadMe.info
+	cp $(HC)/upstream/LICENSE $(DRAWER)/LICENSE.txt
+	cp amiga/icons/ReadMe.info $(DRAWER)/LICENSE.txt.info
+	cp amiga/icons/Hypercycles-drawer.info $(BUILD)/Hypercycles.info
+	cp amiga/Install-Hypercycles amiga/Install-Hypercycles.info $(BUILD)/
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all program package clean
+.SECONDARY:
