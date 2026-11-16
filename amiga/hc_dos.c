@@ -325,12 +325,15 @@ char *strupr(char *s)
     return s;
 }
 
+/* libnix (the Amiga's C library) has its own strlwr */
+#if !defined(__amigaos__) && !defined(AMIGA)
 char *strlwr(char *s)
 {
     char *p;
     for (p = s; *p; p++) if (*p >= 'A' && *p <= 'Z') *p = (char)(*p + 32);
     return s;
 }
+#endif
 
 /* Watcom's itoa */
 char *itoa(int value, char *buf, int radix)

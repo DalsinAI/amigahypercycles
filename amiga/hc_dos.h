@@ -31,7 +31,9 @@
 /* Watcom's keywords for interrupt handlers and far pointers */
 #define _interrupt
 #define _far
+#ifndef __far
 #define __far
+#endif
 #define far
 #define near
 #define huge
@@ -78,7 +80,9 @@ void segread(struct SREGS *s);
 
 /* Watcom's string calls */
 char *strupr(char *s);
-char *strlwr(char *s);
+#if !defined(__amigaos__) && !defined(AMIGA)
+char *strlwr(char *s);   /* libnix has its own */
+#endif
 char *itoa(int value, char *buf, int radix);
 
 /* what the game points at in place of 0x410, 0x46C and 0xA0000 */

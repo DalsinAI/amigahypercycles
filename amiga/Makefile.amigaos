@@ -29,9 +29,10 @@ CPU       ?= -m68040 -msoft-float
 OPT       ?= -O2 -fomit-frame-pointer -fno-tree-loop-distribute-patterns
 
 INC       = -Iamiga/include -Iamiga -I$(HC)/src -I$(ACGAME)/include
-# Upstream is 1995 Watcom C: gnu89, its warnings are upstream's (-w); a
-# Watcom char is unsigned, and its pointers alias freely.
-UPFLAGS   = -noixemul $(OPT) $(CPU) -std=gnu89 -w -funsigned-char -fno-strict-aliasing \
+# Upstream is 1995 Watcom C: gnu89, its warnings are upstream's (-w), and
+# -fpermissive keeps GCC 14 and later from making its old C (calls with no
+# prototype) errors; a Watcom char is unsigned, and its pointers alias freely.
+UPFLAGS   = -noixemul $(OPT) $(CPU) -std=gnu89 -w -fpermissive -funsigned-char -fno-strict-aliasing \
             -Dmain=hc_game_main $(INC)
 CFLAGS    = -noixemul $(OPT) $(CPU) -std=gnu99 -Wall -Werror $(INC)
 LDFLAGS   = -noixemul $(CPU)
