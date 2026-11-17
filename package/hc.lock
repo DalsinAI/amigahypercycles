@@ -1,0 +1,9 @@
+# The upstream Hypercycles the port builds: malespiaut/hypercycles at this
+# commit (Bob Hays' 1995 source and data, GPL-3.0), fetched by
+# package/prepare-source.sh and never kept in this repository.
+HC_GIT=https://github.com/malespiaut/hypercycles
+HC_COMMIT=c309b8cf8720da174e5a2dfa652f8bb89fb961e0
+HC_VERSION=0.99
+PORT_VERSION=0.99-gfos1
+# DalsinAI/acgame: acgame.library and its stubs, built with the game
+ACGAME_REF=1acbf1e766a3c06487ec232ec99b023313af3e4e

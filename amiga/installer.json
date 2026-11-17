@@ -1,0 +1,15 @@
+{
+  "name": "Hypercycles",
+  "version": "0.99-gfos1",
+  "drawer": "Hypercycles",
+  "program": "Hypercycles",
+  "cpu": "68040",
+  "fpu": false,
+  "space": 3500000,
+  "modules": [],
+  "libraries": ["acgame.library"],
+  "keep": ["HYPER.CFG", "HYPER.SAV"],
+  "parent": "Work:Games",
+  "badge": "icons/art/hypercycles.png",
+  "script": "Install-Hypercycles"
+}
